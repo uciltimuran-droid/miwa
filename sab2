@@ -1,0 +1,597 @@
+-- MIWASO-S4B (FINAL) -- Custom UI, Delta-friendly parenting & terrifying hacker-glitch intro
+-- USE ONLY in your own Roblox places or for learning. Do NOT use to cheat in other people's games.
+
+-- CONFIG
+local DEFAULT_WALKSPEED = 16
+local DEFAULT_JUMPPOWER = 50
+local MAX_VALUE = 100
+
+-- Quick utility
+local function safeWait(s) if s and s > 0 then local t0 = tick(); repeat task.wait() until tick() - t0 >= s end end
+
+-- Services
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+-- Player retrieval (robust)
+local player = Players.LocalPlayer
+if not player then
+	-- In some injected environments LocalPlayer may be delayed; wait briefly
+	local st = tick()
+	repeat
+		player = Players.LocalPlayer
+		task.wait(0.05)
+	until player or tick() - st > 5
+end
+if not player then
+	warn("MIWASO-S4B: Unable to find LocalPlayer. Script needs to run in a client environment.")
+	return
+end
+
+-- Attempt to parent the GUI robustly
+local function createScreenGui(name)
+	local gui = Instance.new("ScreenGui")
+	gui.Name = name or "MIWASO-S4B"
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 9999
+	-- try PlayerGui first (safe)
+	local success, err = pcall(function()
+		gui.Parent = player:WaitForChild("PlayerGui", 3)
+	end)
+	if not success or not gui.Parent then
+		-- fallback: attempt CoreGui (some executors allow this)
+		local ok2, err2 = pcall(function()
+			gui.Parent = game:GetService("CoreGui")
+		end)
+		if not ok2 or not gui.Parent then
+			-- final fallback: parent to PlayerGui even if delayed
+			pcall(function() gui.Parent = player:FindFirstChild("PlayerGui") end)
+		end
+	end
+	return gui
+end
+
+local screenGui = createScreenGui("MIWASO-S4B")
+if not screenGui or not screenGui.Parent then
+	warn("MIWASO-S4B: Failed to parent ScreenGui. GUI will not appear.")
+	return
+end
+
+-- Short alias
+local function RGBcycle(label, speed)
+	speed = speed or 1
+	spawn(function()
+		local hue = 0
+		while label.Parent do
+			hue = (hue + 0.9 * speed) % 360
+			local c = Color3.fromHSV((hue / 360) % 1, 0.95, 0.95)
+			pcall(function() label.TextColor3 = c end)
+			task.wait(0.016)
+		end
+	end)
+end
+
+-- Create overlay intro
+local overlay = Instance.new("Frame")
+overlay.Name = "IntroOverlay"
+overlay.Size = UDim2.new(1,0,1,0)
+overlay.Position = UDim2.new(0,0,0,0)
+overlay.BackgroundColor3 = Color3.fromRGB(0,0,0)
+overlay.BorderSizePixel = 0
+overlay.ZIndex = 9999
+overlay.Parent = screenGui
+
+-- create scanlines (lightweight strips)
+for i = 1, 64 do
+	local line = Instance.new("Frame", overlay)
+	line.Size = UDim2.new(1,0,0,1)
+	line.Position = UDim2.new(0,0,(i-1)/64,0)
+	line.BackgroundColor3 = Color3.fromRGB(0,40,0)
+	line.BackgroundTransparency = (i % 4 == 0) and 0.85 or 0.95
+	line.ZIndex = 10000
+end
+
+local introTitle = Instance.new("TextLabel", overlay)
+introTitle.Size = UDim2.new(0, 820, 0, 140)
+introTitle.Position = UDim2.new(0.5, -410, 0.35, -70)
+introTitle.BackgroundTransparency = 1
+introTitle.Font = Enum.Font.Code
+introTitle.TextSize = 72
+introTitle.Text = "MIWASO-S4B"
+introTitle.TextColor3 = Color3.fromRGB(0,255,128)
+introTitle.TextStrokeTransparency = 0.6
+introTitle.TextXAlignment = Enum.TextXAlignment.Center
+introTitle.RichText = false
+introTitle.ZIndex = 10001
+
+local sub = Instance.new("TextLabel", overlay)
+sub.Size = UDim2.new(0,600,0,22)
+sub.Position = UDim2.new(0.5,-300,0.5,70)
+sub.BackgroundTransparency = 1
+sub.Font = Enum.Font.Code
+sub.TextSize = 14
+sub.Text = "/// kernel-level control // local client // v1.0"
+sub.TextColor3 = Color3.fromRGB(100,255,140)
+sub.TextXAlignment = Enum.TextXAlignment.Center
+sub.ZIndex = 10001
+
+-- helper: small shake
+local function shake(inst, intensity, duration)
+	intensity = intensity or 6
+	duration = duration or 0.3
+	local origin = inst.Position
+	local elapsed = 0
+	spawn(function()
+		while elapsed < duration and inst.Parent do
+			local dx = (math.random()*2-1) * intensity
+			local dy = (math.random()*2-1) * (intensity * 0.45)
+			pcall(function() inst.Position = origin + UDim2.new(0, dx, 0, dy) end)
+			task.wait(0.016)
+			elapsed = elapsed + 0.016
+		end
+		pcall(function() inst.Position = origin end)
+	end)
+end
+
+local corruptChars = {"#", "@", "%", "&", "?", "¥", "■", "▩", "▒", "≈"}
+local function randomCorrupt(len)
+	local s = ""
+	for i=1,len do s = s .. corruptChars[math.random(1,#corruptChars)] end
+	return s
+end
+
+-- Intro animation (steady, terrifying hacker-glitch)
+local function playIntroAndThen(callback)
+	overlay.Visible = true
+	introTitle.TextTransparency = 1
+	sub.TextTransparency = 1
+
+	-- quick static jitter
+	for i = 1, 8 do
+		overlay.BackgroundColor3 = Color3.fromRGB(2 + math.random(0,6), math.random(0,20), 0)
+		introTitle.Text = randomCorrupt(8)
+		introTitle.TextTransparency = 0.9 - (i/8)*0.6
+		task.wait(0.035 + math.random()*0.02)
+	end
+
+	-- build up
+	local target = "MIWASO-S4B"
+	local start = tick()
+	local duration = 1.2
+	while tick() - start < duration do
+		local s = ""
+		for i=1,#target do
+			if math.random() < ((tick()-start)/duration) then
+				s = s .. target:sub(i,i)
+			else
+				s = s .. corruptChars[math.random(1,#corruptChars)]
+			end
+		end
+		introTitle.Text = s
+		if math.random() < 0.18 then shake(introTitle, 8, 0.12) end
+		sub.TextTransparency = (math.random() < 0.25) and (0.05 + math.random()*0.2) or (0.6 + math.random()*0.2)
+		task.wait(0.03)
+	end
+
+	-- reveal
+	introTitle.Text = target
+	TweenService:Create(introTitle, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+	for i=1,5 do
+		overlay.BackgroundColor3 = (i % 2 == 0) and Color3.fromRGB(2,24,2) or Color3.fromRGB(20,60,20)
+		shake(introTitle, 10, 0.07)
+		task.wait(0.06 + math.random()*0.04)
+	end
+
+	-- steady RGB
+	RGBcycle(introTitle, 1.2)
+
+	-- tear-away corruption
+	local tearStart = tick()
+	while tick() - tearStart < 0.6 do
+		local s = ""
+		for i = 1, #target do
+			if math.random() < 0.08 then
+				s = s .. corruptChars[math.random(1,#corruptChars)]
+			else
+				s = s .. target:sub(i,i)
+			end
+		end
+		introTitle.Text = s
+		if math.random() < 0.25 then overlay.Position = UDim2.new(0, math.random(-6,6), 0, math.random(-4,4)) end
+		task.wait(0.04)
+	end
+
+	-- fade out
+	TweenService:Create(overlay, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {BackgroundTransparency = 1}):Play()
+	TweenService:Create(introTitle, TweenInfo.new(0.45), {TextTransparency = 1}):Play()
+	TweenService:Create(sub, TweenInfo.new(0.45), {TextTransparency = 1}):Play()
+	task.wait(0.5)
+
+	-- callback then destroy overlay
+	if callback then pcall(callback) end
+	pcall(function() overlay:Destroy() end)
+end
+
+-- ---------- Main Panel (created but hidden until intro done) ----------
+local main = Instance.new("Frame")
+main.Name = "MainPanel"
+main.Size = UDim2.new(0, 420, 0, 250)
+main.Position = UDim2.new(0, 24, 0, 120)
+main.BackgroundColor3 = Color3.fromRGB(8,12,6)
+main.BorderSizePixel = 0
+main.Visible = false
+main.ZIndex = 999
+main.Parent = screenGui
+local UICorner = Instance.new("UICorner", main); UICorner.CornerRadius = UDim.new(0,8)
+
+for i = 1, 6 do
+	local line = Instance.new("Frame", main)
+	line.Size = UDim2.new(1,0,0,1)
+	line.Position = UDim2.new(0,0,i/6,0)
+	line.BackgroundColor3 = Color3.fromRGB(12,30,12)
+	line.BackgroundTransparency = 0.6
+end
+
+-- titlebar
+local titleBar = Instance.new("Frame", main)
+titleBar.Size = UDim2.new(1,0,0,40)
+titleBar.BackgroundTransparency = 1
+
+local titleLabel = Instance.new("TextLabel", titleBar)
+titleLabel.Size = UDim2.new(1, -80, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextSize = 20
+titleLabel.Text = "MIWASO-S4B"
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.TextColor3 = Color3.fromRGB(0,255,128)
+RGBcycle(titleLabel, 0.6)
+
+local subLabel = Instance.new("TextLabel", titleBar)
+subLabel.Size = UDim2.new(1, -20, 1, 0)
+subLabel.Position = UDim2.new(0, 12, 0, 18)
+subLabel.BackgroundTransparency = 1
+subLabel.Font = Enum.Font.Code
+subLabel.TextSize = 11
+subLabel.Text = "/// kernel-level control // local client // v1.0"
+subLabel.TextXAlignment = Enum.TextXAlignment.Left
+subLabel.TextColor3 = Color3.fromRGB(100,255,140)
+subLabel.TextTransparency = 0.1
+
+local minimizeBtn = Instance.new("TextButton", titleBar)
+minimizeBtn.Size = UDim2.new(0, 36, 0, 28)
+minimizeBtn.Position = UDim2.new(1, -44, 0, 6)
+minimizeBtn.Text = "—"
+minimizeBtn.Font = Enum.Font.SourceSansBold
+minimizeBtn.TextSize = 18
+minimizeBtn.TextColor3 = Color3.fromRGB(200,255,160)
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(10,20,10)
+minimizeBtn.BorderSizePixel = 0
+minimizeBtn.AutoButtonColor = false
+Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(0,6)
+
+-- content container
+local container = Instance.new("Frame", main)
+container.Size = UDim2.new(1, -24, 1, -60)
+container.Position = UDim2.new(0, 12, 0, 44)
+container.BackgroundTransparency = 1
+
+local function makeLabel(txt, posY)
+	local lbl = Instance.new("TextLabel", container)
+	lbl.Size = UDim2.new(0.5, 0, 0, 18)
+	lbl.Position = UDim2.new(0, 6, 0, posY)
+	lbl.BackgroundTransparency = 1
+	lbl.Font = Enum.Font.Code
+	lbl.TextSize = 14
+	lbl.TextColor3 = Color3.fromRGB(150,255,150)
+	lbl.Text = txt
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	return lbl
+end
+
+-- WalkSpeed controls (slider + textbox)
+makeLabel("WalkSpeed (0 - "..tostring(MAX_VALUE)..")", 0)
+local wsFrame = Instance.new("Frame", container)
+wsFrame.Size = UDim2.new(1, -12, 0, 46)
+wsFrame.Position = UDim2.new(0, 6, 0, 20)
+wsFrame.BackgroundTransparency = 1
+
+local wsSliderBG = Instance.new("Frame", wsFrame)
+wsSliderBG.Size = UDim2.new(1, -160, 0, 10)
+wsSliderBG.Position = UDim2.new(0, 0, 0, 18)
+wsSliderBG.BackgroundColor3 = Color3.fromRGB(18,36,18)
+wsSliderBG.BorderSizePixel = 0
+Instance.new("UICorner", wsSliderBG).CornerRadius = UDim.new(0, 6)
+
+local wsFill = Instance.new("Frame", wsSliderBG)
+wsFill.Size = UDim2.new(DEFAULT_WALKSPEED/MAX_VALUE, 0, 1, 0)
+wsFill.BackgroundColor3 = Color3.fromRGB(0,200,80)
+Instance.new("UICorner", wsFill).CornerRadius = UDim.new(0, 6)
+
+local wsHandle = Instance.new("TextButton", wsSliderBG)
+wsHandle.Size = UDim2.new(0, 12, 1, 0)
+wsHandle.Position = UDim2.new(wsFill.Size.X.Scale, 0, 0, 0)
+wsHandle.Text = ""
+wsHandle.AutoButtonColor = false
+wsHandle.BackgroundTransparency = 1
+
+local wsTextBox = Instance.new("TextBox", wsFrame)
+wsTextBox.Size = UDim2.new(0, 120, 0, 28)
+wsTextBox.Position = UDim2.new(1, -120, 0, 8)
+wsTextBox.BackgroundColor3 = Color3.fromRGB(6,12,6)
+wsTextBox.TextColor3 = Color3.fromRGB(170,255,160)
+wsTextBox.Font = Enum.Font.Code
+wsTextBox.PlaceholderText = tostring(DEFAULT_WALKSPEED)
+wsTextBox.Text = tostring(DEFAULT_WALKSPEED)
+wsTextBox.ClearTextOnFocus = false
+Instance.new("UICorner", wsTextBox).CornerRadius = UDim.new(0, 6)
+
+local wsToggle = Instance.new("TextButton", wsFrame)
+wsToggle.Size = UDim2.new(0, 72, 0, 28)
+wsToggle.Position = UDim2.new(1, -206, 0, 8)
+wsToggle.BackgroundColor3 = Color3.fromRGB(12,26,12)
+wsToggle.TextColor3 = Color3.fromRGB(160,255,140)
+wsToggle.Font = Enum.Font.Code
+wsToggle.Text = "Enable"
+wsToggle.AutoButtonColor = false
+Instance.new("UICorner", wsToggle).CornerRadius = UDim.new(0,6)
+
+-- JumpPower controls (slider + textbox)
+makeLabel("JumpPower (0 - "..tostring(MAX_VALUE)..")", 76)
+local jpFrame = Instance.new("Frame", container)
+jpFrame.Size = UDim2.new(1, -12, 0, 46)
+jpFrame.Position = UDim2.new(0, 6, 0, 96)
+jpFrame.BackgroundTransparency = 1
+
+local jpSliderBG = Instance.new("Frame", jpFrame)
+jpSliderBG.Size = UDim2.new(1, -160, 0, 10)
+jpSliderBG.Position = UDim2.new(0, 0, 0, 18)
+jpSliderBG.BackgroundColor3 = Color3.fromRGB(18,36,18)
+jpSliderBG.BorderSizePixel = 0
+Instance.new("UICorner", jpSliderBG).CornerRadius = UDim.new(0, 6)
+
+local jpFill = Instance.new("Frame", jpSliderBG)
+jpFill.Size = UDim2.new(DEFAULT_JUMPPOWER/MAX_VALUE, 0, 1, 0)
+jpFill.BackgroundColor3 = Color3.fromRGB(0,200,80)
+Instance.new("UICorner", jpFill).CornerRadius = UDim.new(0, 6)
+
+local jpHandle = Instance.new("TextButton", jpSliderBG)
+jpHandle.Size = UDim2.new(0, 12, 1, 0)
+jpHandle.Position = UDim2.new(jpFill.Size.X.Scale, 0, 0, 0)
+jpHandle.Text = ""
+jpHandle.AutoButtonColor = false
+jpHandle.BackgroundTransparency = 1
+
+local jpTextBox = Instance.new("TextBox", jpFrame)
+jpTextBox.Size = UDim2.new(0, 120, 0, 28)
+jpTextBox.Position = UDim2.new(1, -120, 0, 8)
+jpTextBox.BackgroundColor3 = Color3.fromRGB(6,12,6)
+jpTextBox.TextColor3 = Color3.fromRGB(170,255,160)
+jpTextBox.Font = Enum.Font.Code
+jpTextBox.PlaceholderText = tostring(DEFAULT_JUMPPOWER)
+jpTextBox.Text = tostring(DEFAULT_JUMPPOWER)
+jpTextBox.ClearTextOnFocus = false
+Instance.new("UICorner", jpTextBox).CornerRadius = UDim.new(0, 6)
+
+local jpToggle = Instance.new("TextButton", jpFrame)
+jpToggle.Size = UDim2.new(0, 72, 0, 28)
+jpToggle.Position = UDim2.new(1, -206, 0, 8)
+jpToggle.BackgroundColor3 = Color3.fromRGB(12,26,12)
+jpToggle.TextColor3 = Color3.fromRGB(160,255,140)
+jpToggle.Font = Enum.Font.Code
+jpToggle.Text = "Enable"
+jpToggle.AutoButtonColor = false
+Instance.new("UICorner", jpToggle).CornerRadius = UDim.new(0,6)
+
+-- Invisibility toggle
+local invisLabel = makeLabel("Invisible (local client)", 168)
+invisLabel.Position = UDim2.new(0,6,0,168)
+
+local invisToggle = Instance.new("TextButton", container)
+invisToggle.Size = UDim2.new(0, 160, 0, 30)
+invisToggle.Position = UDim2.new(0, 6, 0, 192)
+invisToggle.BackgroundColor3 = Color3.fromRGB(10,20,10)
+invisToggle.AutoButtonColor = false
+invisToggle.Text = "Invisible: Off"
+invisToggle.Font = Enum.Font.Code
+invisToggle.TextColor3 = Color3.fromRGB(160,255,140)
+Instance.new("UICorner", invisToggle).CornerRadius = UDim.new(0,6)
+
+-- State & stored props
+local state = {
+	wsEnabled = false, jpEnabled = false, invisible = false,
+	wsValue = DEFAULT_WALKSPEED, jpValue = DEFAULT_JUMPPOWER, minimized = false
+}
+local storedProps = {}
+
+-- Humanoid helpers
+local function getHumanoid()
+	local char = player.Character
+	if not char then return nil end
+	return char:FindFirstChildOfClass("Humanoid")
+end
+
+local function applyWalkSpeed(v)
+	local h = getHumanoid()
+	if h then
+		local val = math.clamp(math.floor(tonumber(v) or DEFAULT_WALKSPEED + 0.5), 0, MAX_VALUE)
+		pcall(function() h.WalkSpeed = val end)
+	end
+end
+
+local function applyJumpPower(v)
+	local h = getHumanoid()
+	if h then
+		local val = math.clamp(math.floor(tonumber(v) or DEFAULT_JUMPPOWER + 0.5), 0, MAX_VALUE)
+		pcall(function() h.JumpPower = val end)
+		pcall(function() if h.JumpHeight and h.JumpHeight ~= 0 then h.JumpHeight = val/10 end end)
+	end
+end
+
+local function setInvisible(on)
+	local char = player.Character
+	if not char then return end
+	if on then
+		storedProps = {}
+		for _, obj in ipairs(char:GetDescendants()) do
+			if obj:IsA("BasePart") then
+				storedProps[obj] = {Transparency = obj.Transparency, CanCollide = obj.CanCollide}
+				obj.Transparency = 1; obj.CanCollide = false
+			elseif obj:IsA("Decal") or obj:IsA("Texture") then
+				storedProps[obj] = {Transparency = obj.Transparency}
+				obj.Transparency = 1
+			elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+				storedProps[obj] = {Enabled = obj.Enabled}
+				obj.Enabled = false
+			end
+		end
+	else
+		for obj,props in pairs(storedProps) do
+			if obj and obj.Parent then
+				for k,v in pairs(props) do pcall(function() obj[k]=v end) end
+			end
+		end
+		storedProps = {}
+	end
+end
+
+-- Slider helpers (mouse)
+local mouse = player:GetMouse()
+local function setupSlider(bg, fill, handle, textbox, initial, onChange)
+	local dragging = false
+	local function setByRel(rel)
+		rel = math.clamp(rel, 0, 1)
+		fill.Size = UDim2.new(rel, 0, 1, 0)
+		handle.Position = UDim2.new(fill.Size.X.Scale, 0, 0, 0)
+		local val = math.floor(rel * MAX_VALUE + 0.5)
+		textbox.Text = tostring(val)
+		if onChange then pcall(onChange, val) end
+		return val
+	end
+
+	handle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
+	end)
+	handle.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+	end)
+
+	bg.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			local x = input.Position.X
+			local rel = (x - bg.AbsolutePosition.X) / bg.AbsoluteSize.X
+			setByRel(rel)
+		end
+	end)
+
+	RunService.RenderStepped:Connect(function()
+		if dragging then
+			local x = mouse.X
+			local rel = (x - bg.AbsolutePosition.X) / bg.AbsoluteSize.X
+			setByRel(rel)
+		end
+	end)
+
+	textbox.FocusLost:Connect(function()
+		local num = tonumber(textbox.Text)
+		if not num then
+			textbox.Text = tostring(initial)
+			if onChange then pcall(onChange, initial) end
+			return
+		end
+		local clamped = math.clamp(math.floor(num+0.5), 0, MAX_VALUE)
+		local rel = clamped / MAX_VALUE
+		setByRel(rel)
+	end)
+
+	-- init
+	local relInit = math.clamp(initial / MAX_VALUE, 0, 1)
+	fill.Size = UDim2.new(relInit, 0, 1, 0)
+	handle.Position = UDim2.new(fill.Size.X.Scale, 0, 0, 0)
+	textbox.Text = tostring(initial)
+end
+
+-- Wire sliders
+setupSlider(wsSliderBG, wsFill, wsHandle, wsTextBox, DEFAULT_WALKSPEED, function(val)
+	state.wsValue = val
+	if state.wsEnabled then applyWalkSpeed(state.wsValue) end
+end)
+setupSlider(jpSliderBG, jpFill, jpHandle, jpTextBox, DEFAULT_JUMPPOWER, function(val)
+	state.jpValue = val
+	if state.jpEnabled then applyJumpPower(state.jpValue) end
+end)
+
+-- Toggles
+wsToggle.MouseButton1Click:Connect(function()
+	state.wsEnabled = not state.wsEnabled
+	if state.wsEnabled then
+		wsToggle.Text = "Disable"; wsToggle.BackgroundColor3 = Color3.fromRGB(0,80,40)
+		applyWalkSpeed(state.wsValue)
+	else
+		wsToggle.Text = "Enable"; wsToggle.BackgroundColor3 = Color3.fromRGB(12,26,12)
+		applyWalkSpeed(DEFAULT_WALKSPEED)
+	end
+end)
+
+jpToggle.MouseButton1Click:Connect(function()
+	state.jpEnabled = not state.jpEnabled
+	if state.jpEnabled then
+		jpToggle.Text = "Disable"; jpToggle.BackgroundColor3 = Color3.fromRGB(0,80,40)
+		applyJumpPower(state.jpValue)
+	else
+		jpToggle.Text = "Enable"; jpToggle.BackgroundColor3 = Color3.fromRGB(12,26,12)
+		applyJumpPower(DEFAULT_JUMPPOWER)
+	end
+end)
+
+invisToggle.MouseButton1Click:Connect(function()
+	state.invisible = not state.invisible
+	if state.invisible then
+		invisToggle.Text = "Invisible: On"; invisToggle.BackgroundColor3 = Color3.fromRGB(0,80,40)
+		setInvisible(true)
+	else
+		invisToggle.Text = "Invisible: Off"; invisToggle.BackgroundColor3 = Color3.fromRGB(10,20,10)
+		setInvisible(false)
+	end
+end)
+
+-- Minimize behavior
+local minBar
+local function createMinBar()
+	if minBar and minBar.Parent then return end
+	minBar = Instance.new("Frame", screenGui)
+	minBar.Size = UDim2.new(0, 180, 0, 36)
+	minBar.Position = main.Position + UDim2.new(0, 0, 0, 0)
+	minBar.BackgroundColor3 = Color3.fromRGB(6,12,6)
+	minBar.BorderSizePixel = 0
+	local c = Instance.new("UICorner", minBar); c.CornerRadius = UDim.new(0,8)
+
+	local lbl = Instance.new("TextLabel", minBar)
+	lbl.Size = UDim2.new(1, -60, 1, 0); lbl.Position = UDim2.new(0,12,0,0)
+	lbl.BackgroundTransparency = 1; lbl.Font = Enum.Font.Code; lbl.TextSize = 14
+	lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Text = "MIWASO-S4B"; lbl.TextColor3 = Color3.fromRGB(150,255,150)
+
+	local openBtn = Instance.new("TextButton", minBar)
+	openBtn.Size = UDim2.new(0,36,0,28); openBtn.Position = UDim2.new(1,-44,0,4)
+	openBtn.Text = "▢"; openBtn.Font = Enum.Font.SourceSansBold; openBtn.TextColor3 = Color3.fromRGB(200,255,160)
+	openBtn.BackgroundColor3 = Color3.fromRGB(10,20,10); Instance.new("UICorner", openBtn).CornerRadius = UDim.new(0,6)
+	openBtn.MouseButton1Click:Connect(function()
+		if minBar then minBar:Destroy(); minBar = nil end
+		main.Visible = true; state.minimized = false
+	end)
+end
+
+minimizeBtn.MouseButton1Click:Connect(function()
+	if not state.minimized then
+		main.Visible = false; createMinBar(); state.minimized = true
+	else
+		if minBar then minBar:Destroy(); minBar = nil end; main.Visible = true; state.minimized = false
+	end
+end)
+
+-- Reapply on respawn
+local function onCharacterAdded(char)
+	task.wait(0.12)
+	if state.wsEnabled then applyWal
