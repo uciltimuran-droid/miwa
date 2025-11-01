@@ -1,0 +1,192 @@
+-- Legends of Speed Script with Full Implementations
+
+-- Initialize the script with the necessary libraries and functions
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local Mouse = Player:GetMouse()
+local Camera = workspace.CurrentCamera
+
+-- Create the main GUI frame
+local MainFrame = Instance.new("ScreenGui")
+MainFrame.Name = "LegendsOfSpeedGUI"
+MainFrame.Parent = Player:WaitForChild("PlayerGui", 5)
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 300, 0, 500)
+Frame.Position = UDim2.new(0.5, -150, 0, 50)
+Frame.BackgroundColor3 = Color3.new(0, 0, 0)
+Frame.BorderSizePixel = 2
+Frame.BorderColor3 = Color3.new(1, 1, 1)
+Frame.Parent = MainFrame
+
+-- Adding the M initial panel logo
+local MLogo = Instance.new("TextLabel")
+MLogo.Size = UDim2.new(1, 0, 0, 50)
+MLogo.Position = UDim2.new(0, 0, 0, 0)
+MLogo.BackgroundColor3 = Color3.new(0, 0, 0)
+MLogo.BorderSizePixel = 0
+MLogo.Text = "Miwa-So"
+MLogo.TextColor3 = Color3.new(1, 1, 1)
+MLogo.TextSize = 30
+MLogo.Font = Enum.Font.SourceSansBold
+MLogo.Parent = Frame
+
+-- Function to create a button with specific configurations
+local function createButton(text, callback)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(1, 0, 0, 40)
+    Button.Position = UDim2.new(0, 0, 0, MLogo.Size.Y.Offset)
+    Button.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    Button.BorderSizePixel = 2
+    Button.BorderColor3 = Color3.new(1, 1, 1)
+    Button.Text = text
+    Button.TextColor3 = Color3.new(1, 1, 1)
+    Button.TextSize = 20
+    Button.Font = Enum.Font.SourceSansBold
+    Button.MouseButton1Click:Connect(callback)
+    Button.Parent = Frame
+    MLogo.Size = UDim2.new(1, 0, 0, 50) -- Reset MLogo size
+    return Button
+end
+
+-- Function to check for gems, hoops, orbs, etc., and collect them automatically
+local function autoCollect(targetPart, collectionRange)
+    local loop = true
+    return function()
+        while loop do
+            for _, part in pairs(workspace:GetChildren()) do
+                if part:IsA("Part") and (part.Name == targetPart or part:FindFirstChild(targetPart)) then
+                    if (part.Position - Player.Character.HumanoidRootPart.Position).magnitude <= collectionRange then
+                        Player.Character.Humanoid:MoveTo(part.Position)
+                        wait(0.1)
+                    end
+                end
+            end
+            wait(0.5)
+        end
+    end
+end
+
+-- Auto Gems Button
+createButton("Auto Gems", function()
+    if AutoGems then
+        AutoGems = false
+        print("Auto Gems Stopped")
+    else
+        AutoGems = true
+        print("Auto Gems Started")
+        coroutine.wrap(autoCollect("Gem", 20))()
+    end
+end)
+
+-- Auto Hoops Button
+createButton("Auto Hoops", function()
+    if AutoHoops then
+        AutoHoops = false
+        print("Auto Hoops Stopped")
+    else
+        AutoHoops = true
+        print("Auto Hoops Started")
+        coroutine.wrap(autoCollect("Hoop", 20))()
+    end
+end)
+
+-- Auto Collect Orbs Button
+createButton("Auto Collect Orbs", function()
+    if AutoOrbs then
+        AutoOrbs = false
+        print("Auto Orbs Stopped")
+    else
+        AutoOrbs = true
+        print("Auto Orbs Started")
+        coroutine.wrap(autoCollect("Orb", 20))()
+    end
+end)
+
+-- Auto Join Race Button
+createButton("Auto Join Race", function()
+    if AutoJoinRace then
+        AutoJoinRace = false
+        print("Auto Join Race Stopped")
+    else
+        AutoJoinRace = true
+        print("Auto Join Race Started")
+        coroutine.wrap(function()
+            while AutoJoinRace do
+                if not Player.Character:FindFirstChild("Race").Value then
+                    local RaceStart = workspace:FindFirstChild("RaceStart") -- Assuming the race start part is named "RaceStart"
+                    if RaceStart then
+                        Player.Character.Humanoid:MoveTo(RaceStart.Position)
+                        wait(0.5)
+                    end
+                end
+                wait(0.5)
+            end
+        end)()
+    end
+end)
+
+-- Auto Win Race Button
+createButton("Auto Win Race", function()
+    if AutoWinRace then
+        AutoWinRace = false
+        print("Auto Win Race Stopped")
+    else
+        AutoWinRace = true
+        print("Auto Win Race Started")
+        coroutine.wrap(function()
+            while AutoWinRace do
+                if Player.Character:FindFirstChild("Race") then
+                    local RaceEnd = workspace:FindFirstChild("RaceEnd") -- Assuming the race end part is named "RaceEnd"
+                    if RaceEnd then
+                        Player.Character.Humanoid:MoveTo(RaceEnd.Position)
+                        wait(0.5)
+                    end
+                end
+                wait(0.5)
+            end
+        end)()
+    end
+end)
+
+-- Teleport Button
+createButton("Teleport", function()
+    local PartName = "TeleportDestination" -- Set the name of the part you want to teleport to
+    local TargetPart = workspace:FindFirstChild(PartName)
+    if TargetPart then
+        Player.Character.HumanoidRootPart.CFrame = CFrame.new(TargetPart.Position)
+        print("Teleported to", PartName)
+    else
+        print(PartName, "not found in the workspace")
+    end
+end)
+
+-- Additional useful features can be added as more buttons
+createButton("Feature X", function()
+    -- Implement additional features as needed
+end)
+
+createButton("Feature Y", function()
+    -- Implement additional features as needed
+end)
+
+-- Adjust the position of the frame and the buttons for better UI
+local lastButton = createButton("Exit", function()
+    MainFrame:Destroy()
+end)
+
+local firstButton = Frame:GetChildren()[2] -- Assuming first button is the second child
+firstButton.Position = UDim2.new(0, 0, 0, 50)
+
+for i, v in pairs(Frame:GetChildren()) do
+    if v:IsA("TextButton") then
+        if v ~= lastButton then
+            local nextButton = Frame:GetChildren()[i+1]  -- Get the next button
+            v.Position = UDim2.new(0, 0, 0, lastButton.Position.Y.Offset + lastButton.Size.Y.Offset)
+            lastButton = v
+        end
+    end
+end
+
+-- Variables to control the loop states
+local AutoGems, AutoHoops, AutoOrbs, AutoJoinRace, AutoWinRace = false, false, false, false, false
